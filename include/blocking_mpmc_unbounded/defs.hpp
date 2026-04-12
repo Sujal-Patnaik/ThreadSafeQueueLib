@@ -2,16 +2,18 @@
 #define BLOCKING_MPMC_UNBOUNDED_DEFS
 
 #include "utils.hpp"
+#include <atomic>
+#include <cstddef>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <type_traits>
 
-namespace tsfqueue::__impl {
+namespace tsfqueue::impl {
 template <typename T> class blocking_mpmc_unbounded {
   static_assert(std::is_move_constructible_v<T>,"data type must be move constructible");
   static_assert(std::is_move_assignable_v<T>,"data type must be move assignable");
-  static_assert(!std::is_void_v<T>,"data type must not be void");
+  static_assert(std::is_object_v<T>,"data type must be an object type");
   //Static Assert for references?
   // For the implementation, we start with a stub node and both head and tail
   // are initialized to it. When we push, we make a new stub node, move the data
@@ -22,7 +24,7 @@ template <typename T> class blocking_mpmc_unbounded {
   // by returning the data stored in head node and replacing head to its next
   // node. We handle the empty queue gracefully as per the pop type.
 private:
-  using node = tsfqueue::__utils::Node<T>;
+  using node = tsfqueue::utils::Node<T>;
 
   // Add private members :
   std::mutex head_mutex;
@@ -69,6 +71,11 @@ public:
     head = std::make_unique<node>();
     tail = head.get(); //head.get() gives the raw pointer to the tail and not the ownership to tail  
   }
+  blocking_mpmc_unbounded(const blocking_mpmc_unbounded&) = delete;
+  blocking_mpmc_unbounded& operator=(const blocking_mpmc_unbounded&) = delete;
+
+  blocking_mpmc_unbounded(blocking_mpmc_unbounded&&) = delete;
+  blocking_mpmc_unbounded& operator=(blocking_mpmc_unbounded&&) = delete;
   void push(T value);
   void wait_and_pop(T& value);
   std::shared_ptr<T> wait_and_pop(void);
@@ -94,6 +101,6 @@ public:
   // 9. Add size() function
   // 10. Any more suggestions ??
 };
-} // namespace tsfqueue::__impl
+} // namespace tsfqueue::impl
 
 #endif

@@ -3,10 +3,11 @@
 
 #include "utils.hpp"
 #include <atomic>
+#include <cstddef>
 #include <memory>
 #include <type_traits>
 
-namespace tsfqueue::__impl {
+namespace tsfqueue::impl {
 template <typename T> class lockfree_spsc_unbounded {
   // Works exactly same as the blocking_mpmc_unbounded queue (see this once)
   // with tail pointer pointing to stub node and your head pointer updates as
@@ -25,13 +26,13 @@ template <typename T> class lockfree_spsc_unbounded {
   // by returning the data stored in head node and replacing head to its next
   // node. We handle the empty queue gracefully as per the pop type.
 private:
-  using node = tsfqueue::__utils::Lockless_Node<T>;
+  using node = tsfqueue::utils::Lockless_Node<T>;
 
   // Add the private members :
-  alignas(tsfq::__impl::cache_line_size) 
+  alignas(cache_line_size) 
   node* head; //This is a spsc queue so, there is no data race between multiple consumer threads and hence 
               // head not need be declared atomic.
-  alignas(tsfq::__impl::cache_line_size) 
+  alignas(cache_line_size) 
   std::atomic<node*> tail; //tail is required to be atomic as producer changes the tail while pushing
                           // and consumer may try to read the tail while checking if the queue is empty.
                           // If tail was not atomic this might lead to data race, that is while a consumer tries
@@ -42,7 +43,7 @@ private:
   // 1. node* head -> Pointer to the head node
   // 2. node* tail -> Pointer to tail node
   // 3. Cache align 1-2
-  alignas(tsfq::__impl::cache_line_size) std::atomic<size_t> sz{0};
+  alignas(cache_line_size) std::atomic<size_t> sz{0};
 
 
 public:
@@ -83,6 +84,6 @@ public:
   // 9. Any more suggestions ??
   // 10. Why no shared_ptr ?? [Reason this]
 };
-} // namespace tsfqueue::__impl
+} // namespace tsfqueue::impl
 
 #endif 

@@ -3,11 +3,10 @@
 
 #include "defs.hpp"
 
-template <typename T>
-using queue = tsfqueue::__impl::blocking_mpmc_unbounded<T>;
+namespace tsfqueue::impl {
 
-template <typename T> void queue<T>::push(T value) {
-    std::shared_ptr<T> temp = std::make_shared<T>(:std:move(value));
+template <typename T> void blocking_mpmc_unbounded<T>::push(T value) {
+    std::shared_ptr<T> temp = std::make_shared<T>(std::move(value));
     std::unique_ptr<node> t = std::make_unique<node>();
     std::lock_guard<std::mutex> lock(tail_mutex);
     tail->data = temp;
@@ -18,7 +17,9 @@ template <typename T> void queue<T>::push(T value) {
     cond.notify_one();
 }
 
-template <typename T> queue<T>::node *queue<T>::get_tail() {
+template <typename T>
+typename blocking_mpmc_unbounded<T>::node *
+blocking_mpmc_unbounded<T>::get_tail() {
     std::lock_guard<std::mutex> lock(tail_mutex);
     return tail;
     // This is a private function because we cant allow user to use this function 
@@ -28,7 +29,8 @@ template <typename T> queue<T>::node *queue<T>::get_tail() {
 }
 
 template <typename T>
-std::unique_ptr<typename queue<T>::node> queue<T>::wait_and_get() {
+std::unique_ptr<typename blocking_mpmc_unbounded<T>::node>
+blocking_mpmc_unbounded<T>::wait_and_get() {
      std::unique_lock<std::mutex> lock(head_mutex);
      cond.wait(lock,[this]{ return head.get()!= get_tail();});
      //We use unique lock because we want extra control over the lock to unlock and relock it again.
@@ -40,7 +42,9 @@ std::unique_ptr<typename queue<T>::node> queue<T>::wait_and_get() {
      //                  head-|
 }
 
-template <typename T> std::unique_ptr<typename queue<T>::node> queue<T>::try_get() {
+template <typename T>
+std::unique_ptr<typename blocking_mpmc_unbounded<T>::node>
+blocking_mpmc_unbounded<T>::try_get() {
     std::lock_guard<std::mutex> lock(head_mutex);
     if(head.get()==get_tail()){
         return std::unique_ptr<node>();
@@ -50,19 +54,19 @@ template <typename T> std::unique_ptr<typename queue<T>::node> queue<T>::try_get
     return old;
 }
 
-template <typename T> void queue<T>::wait_and_pop(T &value) {
+template <typename T> void blocking_mpmc_unbounded<T>::wait_and_pop(T &value) {
     std::unique_ptr<node> old = wait_and_get();
     value = std::move(*(old->data));
     --sz;
 }
 
-template <typename T> std::shared_ptr<T> queue<T>::wait_and_pop() {
+template <typename T> std::shared_ptr<T> blocking_mpmc_unbounded<T>::wait_and_pop() {
     std::unique_ptr<node> old = wait_and_get();
     --sz;
     return old->data;
 }
 
-template <typename T> bool queue<T>::try_pop(T &value) {
+template <typename T> bool blocking_mpmc_unbounded<T>::try_pop(T &value) {
     std::unique_ptr<node> old = std::move(try_get());
     if(!old) return false;
     value = std::move(*(old->data));
@@ -70,21 +74,23 @@ template <typename T> bool queue<T>::try_pop(T &value) {
     return true;
 }
 
-template <typename T> std::shared_ptr<T> queue<T>::try_pop() {
+template <typename T> std::shared_ptr<T> blocking_mpmc_unbounded<T>::try_pop() {
     std::unique_ptr<node> old = std::move(try_get());
     if(!old) return nullptr;
     --sz;
     return old->data;
 }
 
-template <typename T> bool queue<T>::empty() {
+template <typename T> bool blocking_mpmc_unbounded<T>::empty() {
     std::lock_guard<std::mutex> lock(head_mutex);
     return (head.get()==get_tail());
 }         
 // head ->  dummy <- tail
-template <typename T> size_t queue<T>::size() const{
+template <typename T> size_t blocking_mpmc_unbounded<T>::size() const{
     return sz.load(std::memory_order_relaxed);
 } 
+
+} // end namespace tsfqueue::impl
 
 
 #endif
@@ -94,5 +100,4 @@ template <typename T> size_t queue<T>::size() const{
 // can use this in push then)
 // 3. Add size() function
 // 4. Any more suggestions ?? 
-
 
