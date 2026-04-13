@@ -8,6 +8,9 @@ namespace tsfqueue::impl {
 template <typename T, size_t Capacity>
 void lockfree_spsc_bounded<T, Capacity>::wait_and_push(T value) {
   size_t cur_tail = tail.load(std::memory_order_acquire);
+  //We should change the tail.load(acquire) to tail.load(relaxed) since only the producer thread has 
+  // exclusive write access to the tail variable and a single thread always agrees upon the order of modification of an atomic variable.
+  //tail.load(relaxed) is less costly.
   size_t next_tail = (cur_tail + 1) % capacity;
   // size_t curr_head = head.load(std::memory_order_acquire);
   while (next_tail == head_cache) {
