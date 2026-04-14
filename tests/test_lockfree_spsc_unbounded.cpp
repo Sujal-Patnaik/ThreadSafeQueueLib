@@ -89,3 +89,103 @@ TEST(SPSCObjectTests, No_Memory_Leaks) {
     
     EXPECT_TRUE(tracker.expired()); 
 }
+
+
+// checking if the queue can handle large objects
+TEST(SPSCObjectTests, Handles_Large_Objects) {
+    lockfree_spsc_unbounded<std::string> string_queue;
+    
+    
+    std::string s(1000, 'X'); 
+    
+    string_queue.push(s);
+    
+    std::string output;
+    EXPECT_TRUE(string_queue.try_pop(output));
+    EXPECT_EQ(output.length(), 1000);
+}
+
+//move_assignment operator is working
+TEST(SPSCObjectTests, move_assignment_operator_check) {
+    lockfree_spsc_unbounded<std::unique_ptr<int>> ptr_queue;
+    
+    // We can't copy unique_ptr, so the queue MUST move it correctly.
+    ptr_queue.push(std::make_unique<int>(777));
+    
+    std::unique_ptr<int> result;
+    EXPECT_TRUE(ptr_queue.try_pop(result));
+    
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(*result, 777);
+}
+
+//testing spsc
+TEST_F(SPSCTest,Testing_SPSC) {
+    const int total = 100000;
+    
+    
+    auto producer = [&]() {
+        for (int i = 0; i < total; ++i) {
+            q.push(i);
+        }
+    };
+    
+    
+    auto consumer = [&]() {
+        for (int i = 0; i < total; ++i) {
+            int val = -1;
+           
+            q.wait_and_pop(val); 
+            EXPECT_EQ(val, i);
+        }
+    };
+    
+    std::thread prod_thread(producer);
+    std::thread cons_thread(consumer);
+    
+    prod_thread.join();
+    cons_thread.join();
+    
+    
+    EXPECT_TRUE(q.empty());
+}
+
+
+
+
+//final check and also checking peek function
+TEST_F(SPSCTest, final_spsccheck_with_peek_and_pop) {
+    const int total = 50000;
+    
+    auto producer = [&]() {
+        for (int i = 0; i < total; ++i) q.push(i);
+    };
+    
+    auto consumer = [&]() {
+        int expected = 0;
+        while (expected < total) {
+            int peek_val = -1;
+            int pop_val = -1;
+            
+            // If we successfully peeked...
+            if (q.peek(peek_val)) {
+                // ... we MUST be able to pop that exact same value out immediately.
+                bool success = q.try_pop(pop_val);
+                EXPECT_TRUE(success);
+                EXPECT_EQ(peek_val, pop_val);
+                EXPECT_EQ(pop_val, expected);
+                expected++;
+            }
+        }
+    };
+    
+    std::thread t1(producer);
+    std::thread t2(consumer);
+    t1.join();
+    t2.join();
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
